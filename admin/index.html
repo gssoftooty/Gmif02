@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - GMIF</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self';">
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="https://gmif.in/wp-content/uploads/2025/11/GMIF_logo03-2.png" alt="GMIF">
+      <button class="sidebar-close" id="sidebarClose">&times;</button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">&#9632;</span> Dashboard
+      </a>
+      <a href="#" class="nav-item" data-page="programs">
+        <span class="nav-icon">&#9776;</span> Programs
+      </a>
+      <a href="#" class="nav-item" data-page="team">
+        <span class="nav-icon">&#9733;</span> Team
+      </a>
+      <a href="#" class="nav-item" data-page="pages">
+        <span class="nav-icon">&#9998;</span> Pages
+      </a>
+      <a href="#" class="nav-item" data-page="blog">
+        <span class="nav-icon">&#9997;</span> Blog
+      </a>
+      <a href="#" class="nav-item" data-page="gallery">
+        <span class="nav-icon">&#128247;</span> Gallery
+      </a>
+      <a href="#" class="nav-item" data-page="settings">
+        <span class="nav-icon">&#9881;</span> Settings
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <span id="userDisplay">admin</span>
+      <button onclick="logout()" class="btn-logout">Logout</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn">&#9776;</button>
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="topbar-right">
+        <span class="topbar-user" id="topbarUser">admin</span>
+      </div>
+    </header>
+
+    <div class="content-area" id="contentArea">
+    </div>
+  </main>
+
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
