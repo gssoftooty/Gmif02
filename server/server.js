@@ -3,7 +3,7 @@ var cors = require('cors');
 var bcrypt = require('bcryptjs');
 var { v4: uuidv4 } = require('uuid');
 var path = require('path');
-var { getDb, initDb } = require('./database');
+var { getDb, initDb, initSql } = require('./database');
 
 var app = express();
 var PORT = process.env.PORT || 3001;
@@ -11,7 +11,9 @@ var PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-initDb();
+var SQL_READY = initSql().then(function() {
+  initDb();
+});
 
 /* ============================
    AUTH MIDDLEWARE
@@ -336,6 +338,11 @@ app.use(express.static(path.join(__dirname, '..')));
 /* ============================
    START
    ============================ */
-app.listen(PORT, function() {
-  console.log('GMIF server running at http://localhost:' + PORT);
+SQL_READY.then(function() {
+  app.listen(PORT, function() {
+    console.log('GMIF server running at http://localhost:' + PORT);
+  });
+}).catch(function(err) {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });

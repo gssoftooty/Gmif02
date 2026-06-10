@@ -1,18 +1,124 @@
-var Database = require('better-sqlite3');
+var initSqlJs = require('sql.js');
 var path = require('path');
 var bcrypt = require('bcryptjs');
 var fs = require('fs');
 
 var DB_PATH = path.join(__dirname, 'gmif.db');
+var SQL;
+
+/* Wrapper classes to mimic better-sqlite3 API */
+
+function DbWrapper(sqlDb) {
+  this._db = sqlDb;
+}
+
+DbWrapper.prototype.prepare = function(sql) {
+  return new StmtWrapper(this._db, sql);
+};
+
+DbWrapper.prototype.exec = function(sql) {
+  this._db.run(sql);
+};
+
+DbWrapper.prototype.transaction = function(fn) {
+  var self = this;
+  return function() {
+    self._db.run('BEGIN');
+    try {
+      fn.apply(self, arguments);
+      self._db.run('COMMIT');
+    } catch (e) {
+      self._db.run('ROLLBACK');
+      throw e;
+    }
+  };
+};
+
+DbWrapper.prototype.close = function() {
+  var data = this._db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
+  this._db.close();
+};
+
+function StmtWrapper(sqlDb, sql) {
+  this._db = sqlDb;
+  this._sql = sql;
+}
+
+StmtWrapper.prototype.get = function() {
+  var params = arguments.length > 0 ? Array.prototype.slice.call(arguments) : undefined;
+  if (params && params.length > 0) {
+    var stmt = this._db.prepare(this._sql);
+    stmt.bind(params);
+    if (stmt.step()) {
+      var row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    }
+    stmt.free();
+    return undefined;
+  }
+  var rows = this._db.exec(this._sql);
+  if (rows.length > 0 && rows[0].values.length > 0) {
+    var row = {};
+    rows[0].columns.forEach(function(col, i) {
+      row[col] = rows[0].values[0][i];
+    });
+    return row;
+  }
+  return undefined;
+};
+
+StmtWrapper.prototype.all = function() {
+  var params = arguments.length > 0 ? Array.prototype.slice.call(arguments) : undefined;
+  if (params && params.length > 0) {
+    var stmt = this._db.prepare(this._sql);
+    stmt.bind(params);
+    var results = [];
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+  var rows = this._db.exec(this._sql);
+  if (rows.length === 0) return [];
+  return rows[0].values.map(function(vals) {
+    var row = {};
+    rows[0].columns.forEach(function(col, i) {
+      row[col] = vals[i];
+    });
+    return row;
+  });
+};
+
+StmtWrapper.prototype.run = function() {
+  var params = arguments.length > 0 ? Array.prototype.slice.call(arguments) : undefined;
+  if (params && params.length > 0) {
+    this._db.run(this._sql, params);
+  } else {
+    this._db.run(this._sql);
+  }
+  var rid = 0;
+  var r = this._db.exec('SELECT last_insert_rowid() as id');
+  if (r.length > 0 && r[0].values.length > 0) rid = r[0].values[0][0];
+  return { changes: this._db.getRowsModified(), lastInsertRowid: rid };
+};
+
+/* Database access */
 
 function getDb() {
-  var db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  return db;
+  if (fs.existsSync(DB_PATH)) {
+    var buf = fs.readFileSync(DB_PATH);
+    var sqlDb = new SQL.Database(buf);
+  } else {
+    var sqlDb = new SQL.Database();
+  }
+  return new DbWrapper(sqlDb);
 }
 
 function initDb() {
+  if (!SQL) throw new Error('SQL library not initialized');
   var db = getDb();
 
   db.exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT DEFAULT "editor", created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
@@ -24,8 +130,7 @@ function initDb() {
   db.exec('CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, attempted_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   db.exec('CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT NOT NULL, role TEXT DEFAULT "editor", created_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME NOT NULL)');
 
-  var count = db.prepare('SELECT COUNT(*) as c FROM users').get();
-  if (count.c === 0) {
+  if (!fs.existsSync(path.join(__dirname, 'gmif_seeded.txt'))) {
     var adminHash = bcrypt.hashSync('Gmif@2025', 10);
     var editorHash = bcrypt.hashSync('Editor@123', 10);
     db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', adminHash, 'superadmin');
@@ -45,8 +150,8 @@ function initDb() {
       home_cta_heading: 'Partner With Us',
       home_cta_text: 'We welcome partnerships, volunteers, and donors. Join us in building resilient communities.',
       about_heading: 'About Us',
-      about_p1: 'Green Mount India Foundation (GMIF) is a Non-Profit Company incorporated under the Companies Act 2013. We design and implement community-centered interventions focused on food security, education, healthcare, environment, and social welfare.',
-      about_p2: 'Our work reaches vulnerable families, women, children, the elderly, and persons with disabilities through sustainable, locally-led programs. We believe in creating lasting impact through grassroots initiatives that empower local communities and foster self-reliance.',
+      about_p1: 'Green Mount India Foundation (GMIF) is a Non-Profit Company incorporated under the Companies Act 2013.',
+      about_p2: 'Our work reaches vulnerable families, women, children, the elderly, and persons with disabilities.',
       about_vision: 'A just and resilient society where every person enjoys access to nutritious food, quality education, healthcare, and a wholesome environment.',
       about_mission: 'To alleviate hunger and poverty, strengthen rural health and sanitation, promote inclusive education & vocational skills, empower women and senior citizens.',
       about_cta_heading: 'Join Our Mission',
@@ -63,26 +168,25 @@ function initDb() {
       blog_tag: 'Latest Updates',
       blog_section_heading: 'News & Stories',
       blog_cta_heading: 'Stay Connected',
-      blog_cta_text: 'Follow our journey and be part of the change. Subscribe for updates on our programs and impact.',
+      blog_cta_text: 'Follow our journey and be part of the change.',
       gallery_heading: 'Photo Gallery',
       gallery_tag: 'Our Work in Action',
       gallery_section_heading: 'Moments That Inspire',
       gallery_cta_heading: 'See the Difference',
-      gallery_cta_text: 'Every picture tells a story of transformation. Join us in creating more such moments.'
+      gallery_cta_text: 'Every picture tells a story of transformation.'
     };
-
     var insertPc = db.prepare('INSERT OR IGNORE INTO page_content (key, value) VALUES (?, ?)');
     for (var k in defaultPageContent) {
       insertPc.run(k, defaultPageContent[k]);
     }
 
     var defaultPrograms = [
-      ['Food Security', 'Community Kitchens, food distribution, nutrition awareness & school meal support to reduce hunger.', 'Hunger Relief, Nutrition'],
-      ['Education & Skills', 'Early-childhood education, scholarships, remedial tutoring & vocational training for youth and women.', 'Scholarships, Vocational'],
-      ['Health & Sanitation', 'Rural health camps, sanitation drives, maternal & child health support, and medical referrals.', 'Health Camps, Sanitation'],
-      ['Women & Elderly Support', 'Affordable hostel facilities for women, daycare for the elderly, and women empowerment initiatives.', 'Empowerment, Care'],
-      ['Environment', 'Tree-planting, water conservation, protection of native flora & fauna, sustainable livelihood education.', 'Conservation, Sustainability'],
-      ['Heritage & Culture', 'Restoration of heritage sites, community libraries, and cultural events to preserve local traditions.', 'Heritage, Culture']
+      ['Food Security', 'Community Kitchens, food distribution, nutrition awareness & school meal support.', 'Hunger Relief, Nutrition'],
+      ['Education & Skills', 'Early-childhood education, scholarships, remedial tutoring & vocational training.', 'Scholarships, Vocational'],
+      ['Health & Sanitation', 'Rural health camps, sanitation drives, maternal & child health support.', 'Health Camps, Sanitation'],
+      ['Women & Elderly Support', 'Affordable hostel facilities for women, daycare for the elderly, women empowerment.', 'Empowerment, Care'],
+      ['Environment', 'Tree-planting, water conservation, protection of native flora & fauna.', 'Conservation, Sustainability'],
+      ['Heritage & Culture', 'Restoration of heritage sites, community libraries, and cultural events.', 'Heritage, Culture']
     ];
     var insertProg = db.prepare('INSERT INTO programs (title, description, tags, sort_order) VALUES (?, ?, ?, ?)');
     defaultPrograms.forEach(function(p, i) { insertProg.run(p[0], p[1], p[2], i); });
@@ -96,9 +200,9 @@ function initDb() {
     defaultTeam.forEach(function(t, i) { insertTeam.run(t[0], t[1], t[2], t[3], i); });
 
     var defaultBlog = [
-      ['Community Kitchen Program Launch', 'GMIF launched a new community kitchen initiative serving nutritious meals to over 200 families in the Nilgiris region.', 'Jan 15, 2025', 'https://upload.wikimedia.org/wikipedia/commons/5/55/Keeti_ooty_tamilnadu_-_panoramio.jpg'],
-      ['Education Scholarship Drive', 'Our annual scholarship drive awarded 50 deserving students from underprivileged backgrounds with educational support.', 'Dec 5, 2024', 'https://upload.wikimedia.org/wikipedia/commons/a/a2/Ooty_Valley.jpg'],
-      ['Health Camp Success Story', 'A free health camp organized in partnership with local doctors provided check-ups and medicines to 300+ rural residents.', 'Nov 12, 2024', 'https://upload.wikimedia.org/wikipedia/commons/a/a8/Mist_Flow_in_Glenmorgan_Tea_estate_valley%2C_Ooty.jpg']
+      ['Community Kitchen Program Launch', 'GMIF launched a community kitchen serving 200+ families in the Nilgiris.', 'Jan 15, 2025', 'https://upload.wikimedia.org/wikipedia/commons/5/55/Keeti_ooty_tamilnadu_-_panoramio.jpg'],
+      ['Education Scholarship Drive', 'Annual scholarship drive awarded 50 deserving students.', 'Dec 5, 2024', 'https://upload.wikimedia.org/wikipedia/commons/a/a2/Ooty_Valley.jpg'],
+      ['Health Camp Success Story', 'Free health camp provided check-ups to 300+ rural residents.', 'Nov 12, 2024', 'https://upload.wikimedia.org/wikipedia/commons/a/a8/Mist_Flow_in_Glenmorgan_Tea_estate_valley%2C_Ooty.jpg']
     ];
     var insertBlog = db.prepare('INSERT INTO blog (title, excerpt, date, image, sort_order) VALUES (?, ?, ?, ?, ?)');
     defaultBlog.forEach(function(b, i) { insertBlog.run(b[0], b[1], b[2], b[3], i); });
@@ -111,9 +215,21 @@ function initDb() {
     ];
     var insertGal = db.prepare('INSERT INTO gallery (image, caption, sort_order) VALUES (?, ?, ?)');
     defaultGallery.forEach(function(g, i) { insertGal.run(g[0], g[1], i); });
+
+    fs.writeFileSync(path.join(__dirname, 'gmif_seeded.txt'), 'seeded');
   }
 
   db.close();
 }
 
-module.exports = { getDb, initDb };
+function initSql() {
+  return initSqlJs({
+    locateFile: function(file) {
+      return path.join(__dirname, 'node_modules', 'sql.js', 'dist', file);
+    }
+  }).then(function(sqlLib) {
+    SQL = sqlLib;
+  });
+}
+
+module.exports = { getDb, initDb, initSql };

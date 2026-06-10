@@ -1,6 +1,7 @@
 node_modules/
 *.db
 server/*.log
+server/gmif_seeded.txt
 .env
 .DS_Store
 Thumbs.db
