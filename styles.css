@@ -98,35 +98,18 @@ img { max-width: 100%; height: auto; display: block; }
 
 .logo {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1;
+  align-items: center;
   text-decoration: none;
 }
 
-.logo-text {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--green-700);
-  letter-spacing: 0.05em;
+.logo img {
+  height: 52px;
+  width: auto;
+  transition: var(--transition);
 }
 
-.logo-subtitle {
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: var(--gray-500);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-
-.logo:hover .logo-text {
-  color: var(--green-600);
-}
-
-.logo:hover .logo-subtitle {
-  color: var(--gray-600);
+.logo:hover img {
+  transform: scale(1.03);
 }
 
 .nav ul {
@@ -1018,22 +1001,9 @@ img { max-width: 100%; height: auto; display: block; }
 }
 
 .footer-logo {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1;
+  height: 60px;
+  width: auto;
   margin-bottom: 16px;
-}
-
-.footer-logo .logo-text {
-  font-size: 1.6rem;
-  color: #fff;
-}
-
-.footer-logo .logo-subtitle {
-  font-size: 0.65rem;
-  color: rgba(255,255,255,0.6);
-  margin-top: 3px;
 }
 
 .footer-brand p {

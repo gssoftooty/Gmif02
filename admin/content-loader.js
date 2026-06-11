@@ -44,11 +44,13 @@
       var teamContainer = document.querySelector('[data-editable-team]');
       if (teamContainer && teamData.length) {
         teamContainer.innerHTML = teamData.map(function(t, i) {
+          var initial = (t.name || '?').charAt(0).toUpperCase();
+          var fallback = "this.style.display='none';this.nextElementSibling.style.display='flex'";
           var imgSrc = '';
-          if (i === 0) imgSrc = 'https://gmif.in/wp-content/uploads/2024/06/Ganesh-Ramalingam-540x620.jpg';
+          if (i === 0) imgSrc = 'https://gmif.in/wp-content/uploads/2024/06/Ganesh-Ramlingam-540x620.jpg';
           else if (i === 1) imgSrc = 'https://gmif.in/wp-content/uploads/2024/06/Vijay-Kumar-540x620.jpg';
           else if (i === 2) imgSrc = 'https://gmif.in/wp-content/uploads/2024/06/New-Project-540x620.jpg';
-          return '<div class="team-card reveal" style="--i:' + i + '"><div class="team-img"><img src="' + imgSrc + '" alt="' + sanitizeHtml(t.name) + '"></div><div class="team-info"><h3>' + sanitizeHtml(t.name) + '</h3><span class="team-role">' + sanitizeHtml(t.role) + '</span><p>' + (t.phone ? 'Phone: ' + sanitizeHtml(t.phone) + '<br>' : '') + (t.email ? 'Email: ' + sanitizeHtml(t.email) : '') + '</p></div></div>';
+          return '<div class="team-card reveal" style="--i:' + i + '"><div class="team-img"><img src="' + imgSrc + '" alt="' + sanitizeHtml(t.name) + '" onerror="' + fallback + '" loading="lazy"><div class="team-avatar-fallback" style="display:none;width:100%;height:100%;background:var(--green-100);border-radius:8px;align-items:center;justify-content:center;font-size:3rem;font-weight:700;color:var(--green-700)">' + initial + '</div></div><div class="team-info"><h3>' + sanitizeHtml(t.name) + '</h3><span class="team-role">' + sanitizeHtml(t.role) + '</span><p>' + (t.phone ? 'Phone: ' + sanitizeHtml(t.phone) + '<br>' : '') + (t.email ? 'Email: ' + sanitizeHtml(t.email) : '') + '</p></div></div>';
         }).join('');
       }
     }).catch(function() {});
