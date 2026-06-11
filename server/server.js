@@ -8,11 +8,37 @@ var { getDb, initDb, initSql } = require('./database');
 var app = express();
 var PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+/* Trust proxy if behind a reverse proxy */
+app.set('trust proxy', 1);
+
+/* Restrict CORS — allow same origin and known frontend domains */
+var ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gmif.in,http://localhost:3001').split(',');
+app.use(cors({
+  origin: function(origin, cb) {
+    if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) return cb(null, true);
+    cb(null, false);
+  },
+  credentials: true
+}));
+
+app.use(express.json({ limit: '1mb' }));
+
+/* Async route error wrapper */
+function asyncRoute(fn) {
+  return function(req, res, next) {
+    try { fn(req, res, next); } catch (err) { next(err); }
+  };
+}
 
 var SQL_READY = initSql().then(function() {
   initDb();
+});
+
+/* ============================
+   HEALTH CHECK
+   ============================ */
+app.get('/api/health', function(req, res) {
+  res.json({ status: 'ok', uptime: process.uptime() });
 });
 
 /* ============================
@@ -333,7 +359,42 @@ app.get('/api/dashboard/stats', requireAuth, function(req, res) {
 /* ============================
    STATIC FILES
    ============================ */
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, '..'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0,
+  etag: true
+}));
+
+/* ============================
+   404 HANDLER
+   ============================ */
+app.use(function(req, res) {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'Not found' });
+  } else {
+    res.status(404).sendFile(path.join(__dirname, '..', '404.html'), function(err) {
+      if (err) res.status(404).send('Not found');
+    });
+  }
+});
+
+/* ============================
+   GLOBAL ERROR HANDLER
+   ============================ */
+app.use(function(err, req, res, next) {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+/* ============================
+   GRACEFUL SHUTDOWN
+   ============================ */
+function shutdown() {
+  console.log('\nShutting down gracefully...');
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 /* ============================
    START
